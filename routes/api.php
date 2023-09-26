@@ -42,3 +42,8 @@ Route::group(['middleware' => ['auth:api']], function () {
         Route::post('/', 'Api\Assets\UploadFileController@store');
     });
 });
+
+Route::get('/trigger-scheduler', function() {
+    Artisan::call('schedule:run');
+    return response()->json(['message' => 'Scheduler triggered']);
+});
