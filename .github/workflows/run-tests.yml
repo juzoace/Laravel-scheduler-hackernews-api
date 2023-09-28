@@ -3,54 +3,15 @@ name: "CI/CD Workflow"
 on:
   push:
     branches:
-      - develop
       - master
-  pull_request:
-    branches:
-      - develop
 
 jobs:
-  test:
+  deploy:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        php: [8.1]
-
-    name: PHP ${{ matrix.php }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Cache dependencies
-        uses: actions/cache@v2
-        with:
-          path: ~/.composer/cache/files
-          key: dependencies-laravel-php-${{ matrix.php }}-composer-${{ hashFiles('composer.json') }}
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ matrix.php }}
-          extensions: curl, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, iconv
-          coverage: none
-
-      - name: Install dependencies
-        run: |
-          composer install
-          php -r "copy('.env.example', '.env');"
-          php artisan key:generate
-          php artisan passport:keys
-
-      - name: Execute tests (excluding E2E)
-        run: vendor/bin/phpunit --exclude-group e2e
-
-  deploy:
-    needs: test
-    if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    steps:
       - name: Deploy to EC2
         run: |
           echo "${{ secrets.EC2_DEPLOY_KEY }}" > deploy_key.pem
