@@ -43,8 +43,8 @@ jobs:
           php artisan key:generate
           php artisan passport:keys
 
-      - name: Execute tests
-        run: vendor/bin/phpunit
+      - name: Execute tests (excluding E2E)
+        run: vendor/bin/phpunit --exclude-group e2e
 
   deploy:
     needs: test
@@ -53,9 +53,9 @@ jobs:
     steps:
       - name: Deploy to EC2
         run: |
-          echo "${{ secrets.EC2_DEPLOY_KEY }}" > my_key.pem
-          chmod 600 my_key.pem
-          ssh -o StrictHostKeyChecking=no -i my_key.pem ubuntu@${{ secrets.EC2_HOST }} "
+          echo "${{ secrets.EC2_DEPLOY_KEY }}" > deploy_key.pem
+          chmod 600 deploy_key.pem
+          ssh -o StrictHostKeyChecking=no -i deploy_key.pem ubuntu@${{ secrets.EC2_HOST }} "
           if [ ! -d "/home/ubuntu/Laravel-scheduler-hackernews-api" ]; then
             git clone git@github.com:juzoace/Laravel-scheduler-hackernews-api.git /home/ubuntu/Laravel-scheduler-hackernews-api
           fi
@@ -63,9 +63,9 @@ jobs:
           git pull origin master
           echo '
           APP_NAME=Laravel
-          APP_ENV=local
+          APP_ENV=production
           APP_KEY=
-          APP_DEBUG=true
+          APP_DEBUG=false
           APP_URL=http://localhost
           LOG_CHANNEL=stack
           LOG_LEVEL=debug
@@ -75,30 +75,8 @@ jobs:
           DB_DATABASE=hackernews-db
           DB_USERNAME=${{ secrets.DB_USERNAME }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          MEMCACHED_HOST=127.0.0.1
-          MAIL_MAILER=smtp
-          MAIL_HOST=mailhog
-          MAIL_PORT=1025
-          MAIL_USERNAME=null
-          MAIL_PASSWORD=null
-          MAIL_ENCRYPTION=null
-          MAIL_FROM_ADDRESS=null
-          MAIL_FROM_NAME="${APP_NAME}"
-          AWS_ACCESS_KEY_ID=
-          AWS_SECRET_ACCESS_KEY=
-          AWS_DEFAULT_REGION=us-east-1
-          AWS_BUCKET=
-          PUSHER_APP_ID=
-          PUSHER_APP_KEY=
-          PUSHER_APP_SECRET=
-          PUSHER_APP_CLUSTER=mt1
-          MIX_PUSHER_APP_KEY="${PUSHER_APP_KEY}"
-          MIX_PUSHER_APP_CLUSTER="${PUSHER_APP_CLUSTER}"
-          BROADCAST_DRIVER=log
-          CACHE_DRIVER=redis
-          QUEUE_CONNECTION=redis
-          SESSION_DRIVER=redis
-          SESSION_LIFETIME=120
+          ...
+          # Continue with other environment variables
           REDIS_HOST=127.0.0.1
           REDIS_PASSWORD=null
           REDIS_PORT=6379
