@@ -14,3 +14,4 @@ Homestead.json
 .DS_Store
 .phpunit.result.cache
 docker/mysql/
+kpvocal.pem
