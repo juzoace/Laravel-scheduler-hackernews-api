@@ -1,6 +1,12 @@
-name: "Run Tests - Current"
+name: "Run Tests & Deploy to EC2"
 
-on: [push, pull_request]
+on: 
+  push:
+    branches:
+      - master # Only run on push to master branch
+  pull_request:
+    branches:
+      - master
 
 jobs:
   test:
@@ -35,5 +41,18 @@ jobs:
           php -r "copy('.env.example', '.env');"
           php artisan key:generate
           php artisan passport:keys
+          
       - name: Execute tests
         run: vendor/bin/phpunit
+
+      - name: Deploy to EC2
+        if: github.event_name == 'push'
+        env:
+          DEPLOY_HOST: ${{ secrets.EC2_HOST }} # The EC2 instance IP or hostname
+          DEPLOY_USER: ${{ secrets.EC2_USER }} # The SSH user, typically 'ec2-user' or 'ubuntu'
+          PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }} # The SSH private key
+        run: |
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          ssh -o StrictHostKeyChecking=no -i private_key.pem $DEPLOY_USER@$DEPLOY_HOST "./path/to/deployment/script.sh"
+          rm -f private_key.pem

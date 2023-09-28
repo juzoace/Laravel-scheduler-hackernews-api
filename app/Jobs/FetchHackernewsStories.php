@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Http;
 use App\Models\Story;
 use App\Models\Category;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class FetchHackernewsStories implements ShouldQueue
 {
@@ -26,62 +27,46 @@ class FetchHackernewsStories implements ShouldQueue
     public function handle()
     {
         try {
-            // Fetch stories from the Hackernews API
             $response = Http::get('https://hacker-news.firebaseio.com/v0/topstories.json');
 
             if ($response->successful()) {
                 $storyIds = $response->json();
-
-                // Limit the number of stories fetched
                 $storyIds = array_slice($storyIds, 0, $this->limit);
 
                 foreach ($storyIds as $storyId) {
-                    // Fetch story details from the Hackernews API using the provided storyId
                     $storyResponse = Http::get("https://hacker-news.firebaseio.com/v0/item/{$storyId}.json");
 
                     if ($storyResponse->successful()) {
                         $storyData = $storyResponse->json();
+                        $storyUrl = $storyData['url'] ?? "https://news.ycombinator.com/item?id={$storyData['id']}";
 
-                        $category = $this->determineCategory($storyData['title'] ?? '');
+                        DB::transaction(function () use ($storyData, $storyUrl) {
+                            $category = $this->determineCategory($storyData['title'] ?? '');
 
-                        // Check if the story already exists in the database
-                        $existingStory = Story::find($storyData['id']);
+                            Story::updateOrCreate(
+                                ['id' => $storyData['id']],
+                                [
+                                    'title' => $storyData['title'],
+                                    'url' => $storyUrl,
+                                    'score' => $storyData['score'],
+                                    'time' => date('Y-m-d H:i:s', $storyData['time']),
+                                    'category_id' => $category->id,
+                                ]
+                            );
 
-                        if ($existingStory) {
-                            // Update the existing story with the new data
-                            $existingStory->update([
-                                'title' => $storyData['title'],
-                                'url' => $storyData['url'],
-                                'score' => $storyData['score'],
-                                'time' => date('Y-m-d H:i:s', $storyData['time']),
-                                'category_id' => $category->id,
-                            ]);
-                        } else {
-                            // Save the story to the database
-                            Story::create([
-                                'id' => $storyData['id'],
-                                'title' => $storyData['title'],
-                                'url' => $storyData['url'],
-                                'score' => $storyData['score'],
-                                'time' => date('Y-m-d H:i:s', $storyData['time']),
-                                'category_id' => $category->id,
-                            ]);
-                        }
+                            if (isset($storyData['kids'])) {
+                                FetchHackernewsComments::dispatch($storyData['id'], $storyData['kids']);
+                            }
 
-                        // Dispatch the FetchHackernewsComments job for the story's comments
-                        if (isset($storyData['kids'])) {
-                            FetchHackernewsComments::dispatch($storyData['id'], $storyData['kids']);
-                        }
-
-                        // Assuming the author information is under 'by' in the storyData array
-                        if (isset($storyData['by'])) {
-                            FetchHackernewsAuthors::dispatch($storyData['id'], $storyData['by']);
-                        }
+                            if (isset($storyData['by'])) {
+                                FetchHackernewsAuthors::dispatch($storyData['id'], $storyData['by']);
+                            }
+                        });
                     }
                 }
             }
         } catch (\Exception $e) {
-            Log::error('Error fetching and storing Hackernews stories and comments: ' . $e->getMessage());
+            Log::error('Error in FetchHackernewsStories at Story ID ' . ($storyData['id'] ?? 'Unknown') . ': ' . $e->getMessage());
         }
     }
 
@@ -95,5 +80,4 @@ class FetchHackernewsStories implements ShouldQueue
             return Category::firstOrCreate(['name' => 'General']);
         }
     }
-    
 }

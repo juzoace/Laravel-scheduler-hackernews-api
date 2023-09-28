@@ -30,7 +30,7 @@ class Kernel extends ConsoleKernel
         $schedule->call(function () {
             (new HackernewsDataSpoolService)->spoolData();
             info('HackernewsDataSpoolService ran successfully');
-        })->everyMinute();
+        })->twiceDaily();
     }
 
 
